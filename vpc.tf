@@ -71,7 +71,7 @@ resource "aws_subnet" "private" {
 }
 
 resource "aws_eip" "nat" {
-  vpc = true
+  domain = "vpc"
 
   tags = {
     Name = "${var.project_prefix}-nat-eip"
