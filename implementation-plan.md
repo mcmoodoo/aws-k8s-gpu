@@ -37,17 +37,26 @@ Step-by-step plan to build the AWS EKS GPU cluster with autoscaling and optional
 ### 2. Define Network Infrastructure (Terraform)
 
 - **VPC**
-  - Create a VPC with appropriate CIDR block.
+  - Create a new VPC dedicated to this cluster.
+  - CIDR: `10.0.0.0/16`.
+- **Availability Zones**
+  - Use 2 AZs in `us-west-2` (e.g., `us-west-2a` and `us-west-2b`).
 - **Subnets**
-  - Create public and private subnets across at least two Availability Zones.
+  - Create **2 public subnets** (one per AZ) for:
+    - EKS node groups (CPU + GPU)
+    - Public load balancers.
+  - Create **2 private subnets** (one per AZ) reserved for future use (e.g., internal services, databases).
 - **Internet connectivity**
-  - Attach an Internet Gateway.
-  - Create route tables for public and private subnets.
-  - Add a NAT Gateway for private subnets that require outbound internet access.
+  - Attach an Internet Gateway to the VPC.
+  - Public subnets:
+    - Route directly to the Internet Gateway.
+  - Private subnets:
+    - Route to a **single shared NAT Gateway** in one public subnet (cost-optimized, dev-friendly).
 - **Security groups**
   - Define security groups for:
-    - EKS control plane / nodes
-    - Ingress / load balancers
+    - EKS control plane / nodes (allowing only required ports from the internet or specific CIDRs).
+    - Ingress / load balancers.
+  - Rely on security groups to restrict access to nodes exposed in public subnets; hardening can be iterated later.
 
 ### 3. Create the EKS Cluster (Terraform)
 
