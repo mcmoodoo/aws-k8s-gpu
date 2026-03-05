@@ -63,27 +63,39 @@ Step-by-step plan to build the AWS EKS GPU cluster with autoscaling and optional
 - **EKS control plane**
   - Define an EKS cluster resource referencing:
     - The VPC and subnets.
-    - Cluster name and Kubernetes version.
+    - Cluster name and Kubernetes version (initially using the **latest EKS-supported version** at creation time).
+- **Managed add-ons**
+  - Enable EKS-managed add-ons for:
+    - `vpc-cni`
+    - `coredns`
+    - `kube-proxy`
+  - Let EKS manage patching and minor updates for these components.
 - **IAM roles**
   - Create IAM roles for:
     - EKS cluster
     - Node groups (CPU and GPU)
-    - Cluster Autoscaler (IRSA role recommended)
+    - Cluster Autoscaler (using IRSA).
+- **Cluster access (aws-auth)**
+  - Map the IAM identity used via `aws-vault exec mcmoodoo` into the `system:masters` group to grant cluster-admin access.
+  - Keep additional IAM-to-RBAC mappings minimal initially; expand later as needed.
 - **Outputs**
   - Export cluster name, region, and kubeconfig data so they can be used by `kubectl` and Helm.
 
 ### 4. Define Node Groups (Terraform)
 
 - **CPU node group (always-on)**
-  - Instance type: general-purpose (e.g., `t3.large`, `m6i.large`).
+  - Instance type: general-purpose `t3.large`.
   - Desired/min/max size: `desired = 1`, `min = 1`, `max = 3`.
   - Attach appropriate IAM role and security groups.
 
 - **GPU node group (on-demand)**
-  - Instance type: GPU (e.g., `g5.xlarge`, `g6.xlarge`).
-  - Desired/min/max size: `desired = 0`, `min = 0`, `max = 3`.
+  - Instance type: GPU `g5.4xlarge`.
+  - Desired/min/max size: `desired = 0`, `min = 0`, `max = 1` (strict cost cap, single GPU node).
+  - Purchase option: **On-Demand only** (no Spot, to avoid interruptions).
   - Attach appropriate IAM role and security groups.
-  - Ensure node labels / taints (if used) are defined for GPU workloads.
+  - Configure GPU nodes with:
+    - Label: `node-purpose=gpu`.
+    - Taint: `gpu=true:NoSchedule`, with GPU workloads explicitly tolerating this taint.
 
 ### 5. Configure kubectl Access
 
@@ -94,10 +106,15 @@ Step-by-step plan to build the AWS EKS GPU cluster with autoscaling and optional
 
 ### 6. Install NVIDIA GPU Support (on GPU Nodes)
 
-- **NVIDIA device plugin**
-  - Install the NVIDIA Kubernetes device plugin (e.g., via Helm chart or manifest) so pods can request `nvidia.com/gpu`.
 - **AMI / driver support**
-  - Ensure the GPU node group uses an EKS-optimized GPU AMI or a custom AMI with NVIDIA drivers installed.
+  - Configure the GPU node group to use the standard **EKS-optimized accelerated GPU AMI** for `g5` in `us-west-2`.
+  - Rely on this AMI to provide NVIDIA drivers (no custom AMI or in-cluster driver management initially).
+- **NVIDIA device plugin**
+  - Install the NVIDIA Kubernetes device plugin via **Helm** so pods can request `nvidia.com/gpu`.
+  - Deploy it into `kube-system` with default settings sufficient to expose GPU resources to the scheduler.
+- **Frameworks and runtimes**
+  - Do not install extra cluster-wide GPU frameworks.
+  - Let individual workload containers bring their own CUDA / ML frameworks as needed.
 
 ### 7. Deploy Kubernetes Cluster Autoscaler
 
@@ -115,18 +132,24 @@ Step-by-step plan to build the AWS EKS GPU cluster with autoscaling and optional
 
 ### 8. Implement Scheduled GPU Pre-Warm (Optional)
 
-- **CloudWatch rules**
-  - Create CloudWatch EventBridge / schedule rules:
-    - Morning rule: set GPU node group desired capacity to `1`.
-    - Evening rule: set GPU node group desired capacity back to `0`.
+### 8. Implement Scheduled GPU Pre-Warm (Optional)
+
+- **Feature flag**
+  - Implement scheduled GPU pre-warm as an **optional feature**, controlled by a Terraform variable (e.g., `enable_gpu_prewarm`), **disabled by default**.
+- **CloudWatch / EventBridge rules**
+  - Define EventBridge (CloudWatch) schedule rules in the **`America/New_York` (EST)** timezone:
+    - Morning rule (daily): around `09:00` EST → set GPU node group desired capacity to `1`.
+    - Noon rule (daily): around `12:00` EST → set GPU node group desired capacity back to `0`.
 - **Execution target**
-  - Implement one of:
-    - Lambda function that calls:
-      - `UpdateNodegroupConfig` (EKS) or
-      - `UpdateAutoScalingGroup` (ASG).
-    - Direct EventBridge rule → AWS Systems Manager / other automation that adjusts node group desired capacity.
+  - Use the simpler **EventBridge → Lambda** pattern:
+    - Lambda function calls:
+      - `UpdateNodegroupConfig` (EKS) or the underlying Auto Scaling APIs.
+    - Lambda adjusts the `gpu-inference` node group desired capacity according to the schedule (1 during pre-warm window, 0 otherwise).
 - **Parameterization**
-  - Make schedule times configurable (e.g., environment variables or Terraform variables).
+  - Expose variables for:
+    - Enabling/disabling pre-warm (`enable_gpu_prewarm`).
+    - Pre-warm start and end times.
+    - Desired GPU node count during pre-warm (default `1`, consistent with `max = 1`).
 
 ### 9. Define Example GPU Workload
 
@@ -150,14 +173,19 @@ Step-by-step plan to build the AWS EKS GPU cluster with autoscaling and optional
 
 ### 10. Document Usage and Operations
 
-- **User-facing docs**
-  - Document:
-    - How to deploy GPU workloads (including resource limits).
-    - How to enable / disable pre-warm scheduling.
-    - How to adjust node group sizes and instance types.
-- **Operational runbook**
-  - Add notes for:
-    - Common failure modes (e.g., autoscaler misconfig, insufficient IAM).
-    - How to troubleshoot GPU nodes not appearing or pods stuck in `Pending`.
-    - Cost-control checks (ensuring GPU nodes return to 0 when idle).
+- **Documentation layout**
+  - Keep `README.md` focused on:
+    - High-level overview.
+    - Quickstart instructions (how to bring the cluster up/down).
+  - Add a `docs/` folder (e.g., `docs/runbook.md`, `docs/workloads.md`) for deeper operational details.
+- **Checklist-style runbook (for personal use)**
+  - In `docs/runbook.md`, maintain concise checklists for:
+    - Deploying a new GPU workload (including resource limits, labels, tolerations).
+    - Enabling / disabling GPU pre-warm and changing its schedule.
+    - Adjusting node group sizes and instance types safely via Terraform.
+    - Verifying autoscaler behavior for CPU and GPU node groups.
+  - Capture common failure modes and quick diagnostics:
+    - Autoscaler misconfiguration (pods stuck `Pending`, nodes not scaling).
+    - GPU nodes not appearing or `nvidia.com/gpu` not visible.
+    - Ensuring GPU nodes return to 0 when idle (cost checks).
 
