@@ -73,8 +73,7 @@ Step-by-step plan to build the AWS EKS GPU cluster with autoscaling and optional
 - **IAM roles**
   - Create IAM roles for:
     - EKS cluster
-    - Node groups (CPU and GPU)
-    - Cluster Autoscaler (using IRSA).
+    - Node groups (CPU and GPU).
 - **Cluster access (aws-auth)**
   - Map the IAM identity used via `aws-vault exec mcmoodoo` into the `system:masters` group to grant cluster-admin access.
   - Keep additional IAM-to-RBAC mappings minimal initially; expand later as needed.
@@ -118,10 +117,10 @@ Step-by-step plan to build the AWS EKS GPU cluster with autoscaling and optional
 
 ### 7. Deploy Kubernetes Cluster Autoscaler
 
-- **IAM + IRSA**
-  - Create an IAM policy granting the autoscaler permissions to:
+- **IAM permissions**
+  - Initially, rely on the **node instance profile IAM role** (shared by CPU and GPU node groups) to grant Cluster Autoscaler permissions to:
     - Describe and modify node groups / Auto Scaling groups.
-  - Bind this policy to a Kubernetes service account via IRSA (IAM Roles for Service Accounts).
+  - Plan a future hardening step to move these permissions into a **dedicated IAM role via IRSA**, attached only to the autoscaler service account.
 - **Helm deployment**
   - Deploy Cluster Autoscaler with Helm (or manifests), configured for:
     - The EKS cluster name.

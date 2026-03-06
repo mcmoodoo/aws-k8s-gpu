@@ -77,6 +77,9 @@ resource "aws_eks_node_group" "gpu_inference" {
 
   instance_types = ["g5.4xlarge"]
 
+  ami_type  = "AL2_x86_64_GPU"
+  disk_size = 100
+
   labels = {
     "node-purpose" = "gpu"
   }
