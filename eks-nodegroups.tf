@@ -34,6 +34,37 @@ resource "aws_iam_role_policy_attachment" "eks_node_AmazonEC2ContainerRegistryRe
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
+# Cluster Autoscaler: allow nodes to describe/update ASGs (node instance profile approach; IRSA later)
+resource "aws_iam_role_policy" "eks_node_cluster_autoscaler" {
+  name   = "${var.project_prefix}-cluster-autoscaler"
+  role   = aws_iam_role.eks_node.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeTags",
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = [
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:DescribeImages"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_eks_node_group" "cpu_system" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "cpu-system"
@@ -77,7 +108,8 @@ resource "aws_eks_node_group" "gpu_inference" {
 
   instance_types = ["g5.4xlarge"]
 
-  ami_type  = "AL2_x86_64_GPU"
+  # AL2_x86_64_GPU is only supported for Kubernetes 1.32 or earlier; use AL2023 for 1.33+
+  ami_type  = "AL2023_x86_64_NVIDIA"
   disk_size = 100
 
   labels = {
@@ -103,3 +135,36 @@ resource "aws_eks_node_group" "gpu_inference" {
   ]
 }
 
+# Tag EKS-managed ASGs so Cluster Autoscaler can discover them (run after node groups exist).
+# Using local-exec avoids for_each over "known only after apply" ASG names.
+resource "null_resource" "autoscaler_asg_tags" {
+  triggers = {
+    cpu_system    = aws_eks_node_group.cpu_system.id
+    gpu_inference = aws_eks_node_group.gpu_inference.id
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      CLUSTER="${aws_eks_cluster.this.name}"
+      ASGS=$(aws autoscaling describe-auto-scaling-groups \
+        --query "AutoScalingGroups[?Tags[?Key=='eks:cluster-name'].Value | [0] == \`$CLUSTER\`].AutoScalingGroupName" \
+        --output text --region ${var.aws_region})
+      for asg in $ASGS; do
+        [ -z "$asg" ] && continue
+        aws autoscaling create-or-update-tags --region ${var.aws_region} \
+          --tags "ResourceId=$asg,ResourceType=auto-scaling-group,Key=k8s.io/cluster-autoscaler/enabled,Value=true,PropagateAtLaunch=false"
+        aws autoscaling create-or-update-tags --region ${var.aws_region} \
+          --tags "ResourceId=$asg,ResourceType=auto-scaling-group,Key=k8s.io/cluster-autoscaler/$CLUSTER,Value=owned,PropagateAtLaunch=false"
+      done
+    EOT
+    environment = {
+      AWS_DEFAULT_REGION = var.aws_region
+    }
+  }
+
+  depends_on = [
+    aws_eks_node_group.cpu_system,
+    aws_eks_node_group.gpu_inference,
+  ]
+}
