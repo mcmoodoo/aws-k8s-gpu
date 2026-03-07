@@ -58,6 +58,22 @@ gpu-demo-delete:
 gpu-demo-watch:
 	kubectl get pods -n gpu-lab -w
 
+# --- OpenHands LM 7B (vLLM, OpenAI-compatible API on :8000) ---
+openhands-apply:
+	kubectl apply -f manifests/openhands-lm-7b.yaml
+
+openhands-delete:
+	kubectl delete -f manifests/openhands-lm-7b.yaml
+
+openhands-watch:
+	kubectl get pods -n gpu-lab -l app=openhands-lm-7b -w
+
+openhands-port-forward:
+	kubectl port-forward -n gpu-lab svc/openhands-lm-7b 8000:8000
+
+openhands-logs:
+	kubectl logs -n gpu-lab -l app=openhands-lm-7b -f
+
 # --- Quick checks ---
 nodes:
 	kubectl get nodes

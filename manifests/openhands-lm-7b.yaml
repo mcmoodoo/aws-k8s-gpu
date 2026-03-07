@@ -1,0 +1,74 @@
+# OpenHands LM 7B inference with vLLM (OpenAI-compatible API on port 8000).
+# Apply: kubectl apply -f manifests/openhands-lm-7b.yaml
+# Port-forward: kubectl port-forward -n gpu-lab svc/openhands-lm-7b 8000:8000
+# Then: curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"OpenHands/openhands-lm-7b-v0.1","messages":[{"role":"user","content":"Hello"}]}'
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gpu-lab
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openhands-lm-7b
+  namespace: gpu-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openhands-lm-7b
+  template:
+    metadata:
+      labels:
+        app: openhands-lm-7b
+    spec:
+      tolerations:
+        - key: "gpu"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          args:
+            - "--model"
+            - "OpenHands/openhands-lm-7b-v0.1"
+            - "--host"
+            - "0.0.0.0"
+            - "--trust-remote-code"
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+            requests:
+              cpu: "2"
+              memory: "20Gi"
+              nvidia.com/gpu: 1
+          # Model download + load can take 5–8 min; long delays to avoid killing during load
+          livenessProbe:
+            httpGet:
+              path: /v1/models
+              port: 8000
+            initialDelaySeconds: 600
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /v1/models
+              port: 8000
+            initialDelaySeconds: 360
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openhands-lm-7b
+  namespace: gpu-lab
+spec:
+  selector:
+    app: openhands-lm-7b
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
