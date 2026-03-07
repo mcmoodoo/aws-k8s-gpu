@@ -16,6 +16,7 @@
         kubectl
         kubernetes-helm
         k9s
+        cloudlens
         kubectx
       ];
     };

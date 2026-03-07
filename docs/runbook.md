@@ -36,7 +36,23 @@ After Terraform has created node groups and tagged the ASGs:
 
 ---
 
-## Deploying a GPU workload
+## Example GPU workload (Step 9)
+
+- [ ] Apply the example deployment (creates `gpu-lab` namespace and a single GPU pod):
+  ```bash
+  kubectl apply -f manifests/gpu-example-deployment.yaml
+  ```
+- [ ] Watch: pod may stay `Pending` until the GPU node group scales 0→1 (~3–6 min). Then:
+  ```bash
+  kubectl get pods -n gpu-lab -w
+  kubectl get nodes -l node-purpose=gpu
+  ```
+- [ ] To test scale-down: delete the deployment and wait; GPU node should drain and scale to 0.
+  ```bash
+  kubectl delete -f manifests/gpu-example-deployment.yaml
+  ```
+
+## Deploying your own GPU workload
 
 - [ ] Ensure pod requests `nvidia.com/gpu` and tolerates GPU taint:
   ```yaml
@@ -54,10 +70,16 @@ After Terraform has created node groups and tagged the ASGs:
 
 ---
 
-## Enabling / disabling GPU pre-warm
+## GPU pre-warm (Step 8)
 
-- [ ] Set Terraform variable `enable_gpu_prewarm` (when implemented); re-apply.
-- [ ] Adjust schedule variables if needed (e.g. start/end times).
+Optional. When enabled, EventBridge runs Lambda at **09:00** and **12:00** America/New_York to set GPU node group desired capacity to 1 and 0.
+
+- [ ] **Enable**: set in `variables.tf` or at apply time:
+  ```bash
+  aws-vault exec mcmoodoo -- terraform apply -var="enable_gpu_prewarm=true"
+  ```
+- [ ] **Disable**: `terraform apply -var="enable_gpu_prewarm=false"` (or set default in variables.tf).
+- [ ] **Customize**: variable `gpuprewarm_desired_capacity` (default `1`). Schedule is **UTC** in `gpu-prewarm.tf`: 14:00 UTC (09:00 EST) start, 17:00 UTC (12:00 EST) end; edit the cron expressions there for other times or timezones.
 
 ---
 

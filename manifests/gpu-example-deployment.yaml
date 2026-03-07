@@ -1,0 +1,39 @@
+# Example GPU workload (Step 9). Use to test 0→1 scale-up and scale-down.
+# Apply: kubectl apply -f manifests/gpu-example-deployment.yaml
+# Delete to test scale-down: kubectl delete -f manifests/gpu-example-deployment.yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gpu-lab
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-demo
+  namespace: gpu-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpu-demo
+  template:
+    metadata:
+      labels:
+        app: gpu-demo
+    spec:
+      tolerations:
+        - key: "gpu"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      containers:
+        - name: gpu-demo
+          image: nvidia/cuda:12.0.0-runtime-ubuntu22.04
+          command: ["nvidia-smi", "-l", "60"]
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+            requests:
+              cpu: "500m"
+              memory: "1Gi"

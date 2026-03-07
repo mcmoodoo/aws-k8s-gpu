@@ -36,6 +36,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Lambda build artifact (Terraform archive_file output)
+lambda/**/function.zip
+
 # Local kubeconfig copies (optional; uncomment if you keep one in repo)
 # kubeconfig
 # *.kubeconfig
