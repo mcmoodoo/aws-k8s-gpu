@@ -6,7 +6,7 @@ Personal checklist for operating the EKS GPU cluster.
 
 ## Cluster Autoscaler (Step 7)
 
-After Terraform has created node groups and tagged the ASGs:
+The autoscaler uses **IRSA** (IAM Role for Service Account) so the pod has AWS credentials. Terraform creates the OIDC provider and role; Helm install passes the role ARN to the service account.
 
 1. **Apply Terraform** (if not already done):
    ```bash
@@ -17,15 +17,9 @@ After Terraform has created node groups and tagged the ASGs:
 2. **Add Helm repo and install Cluster Autoscaler** (from repo root, inside `nix develop`).  
    Pin the autoscaler image to your cluster’s **Kubernetes minor version** (e.g. EKS 1.31 → `v1.31.0`). Check with `kubectl version --short` (use Server Version):
    ```bash
-   helm repo add autoscaler https://kubernetes.github.io/autoscaler
-   helm repo update
-   helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
-     --namespace kube-system \
-     --set autoDiscovery.clusterName=agentic-gpu-eks \
-     --set awsRegion=us-west-2 \
-     --set image.tag=v1.31.0
+   just install-autoscaler
    ```
-   Replace `v1.31.0` with a tag that matches your cluster (e.g. `v1.32.0` for EKS 1.32).
+   Or `just install-autoscaler v1.32.0` to match cluster version (check with `kubectl version --short`).
 
 3. **Verify**:
    ```bash

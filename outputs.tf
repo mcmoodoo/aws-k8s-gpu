@@ -18,4 +18,9 @@ output "eks_cluster_oidc_issuer" {
   value       = aws_eks_cluster.this.identity[0].oidc[0].issuer
 }
 
+output "cluster_autoscaler_role_arn" {
+  description = "IAM role ARN for Cluster Autoscaler (use with Helm: --set rbac.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn=<this>)"
+  value       = aws_iam_role.cluster_autoscaler.arn
+}
+
 
