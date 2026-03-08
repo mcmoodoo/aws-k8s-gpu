@@ -86,3 +86,9 @@ pods-autoscaler:
 
 autoscaler-logs:
 	kubectl logs -n kube-system -l app.kubernetes.io/name=aws-cluster-autoscaler --tail=30
+
+# Call OpenHands API (run openhands-port-forward in another terminal first)
+send-request:
+	curl http://localhost:8000/v1/chat/completions \
+		-H "Content-Type: application/json" \
+		-d '{"model":"OpenHands/openhands-lm-7b-v0.1","messages":[{"role":"user","content":"write a poem about resilience"}],"max_tokens":100}'
