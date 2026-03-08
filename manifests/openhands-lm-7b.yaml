@@ -37,6 +37,9 @@ spec:
             - "--host"
             - "0.0.0.0"
             - "--trust-remote-code"
+            # Fit KV cache in remaining GPU memory (g5.4xlarge 24GB; model ~14GB leaves ~4.7GB for KV)
+            - "--max-model-len"
+            - "8192"
           ports:
             - containerPort: 8000
           resources:
