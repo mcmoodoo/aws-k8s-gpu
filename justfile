@@ -71,6 +71,11 @@ openhands-watch:
 openhands-port-forward:
 	kubectl port-forward -n gpu-lab svc/openhands-lm-7b 8000:8000
 
+# Show external endpoint for OpenHands (after LoadBalancer has EXTERNAL-IP)
+openhands-url:
+	@kubectl get svc -n gpu-lab openhands-lm-7b -o wide
+	@echo "Base URL: http://<EXTERNAL-IP above>:8000"
+
 openhands-logs:
 	kubectl logs -n gpu-lab -l app=openhands-lm-7b -f
 

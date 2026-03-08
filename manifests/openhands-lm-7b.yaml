@@ -1,7 +1,10 @@
 # OpenHands LM 7B inference with vLLM (OpenAI-compatible API on port 8000).
 # Apply: kubectl apply -f manifests/openhands-lm-7b.yaml
-# Port-forward: kubectl port-forward -n gpu-lab svc/openhands-lm-7b 8000:8000
-# Then: curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{"model":"OpenHands/openhands-lm-7b-v0.1","messages":[{"role":"user","content":"Hello"}]}'
+# Local access: kubectl port-forward -n gpu-lab svc/openhands-lm-7b 8000:8000
+# External access: Service type is LoadBalancer; after apply, run:
+#   kubectl get svc -n gpu-lab openhands-lm-7b
+# and use the EXTERNAL-IP (or hostname) as base URL, e.g. http://<EXTERNAL-IP>:8000
+# Security: restrict the node/loadbalancer security group to trusted IPs, or add vLLM --api-key.
 ---
 apiVersion: v1
 kind: Namespace
@@ -74,4 +77,4 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
-  type: ClusterIP
+  type: LoadBalancer
