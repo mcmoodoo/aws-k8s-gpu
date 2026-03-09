@@ -17,12 +17,12 @@ Single EC2 instance running OpenHands (Local GUI + REST API), managed by Terrafo
 
 ## Terraform Deliverables
 
-- **main.tf** – AWS provider (us-east-1), security group (22, 8000), **aws_key_pair** (created from `file(var.ssh_public_key_path)`), Ubuntu 22.04 EC2 (e.g. m6i.xlarge), Elastic IP, user_data to:
+- **main.tf** – AWS provider (us-west-2 by default via `aws_region`), security group (22, 8000), **aws_key_pair** (created from `file(var.ssh_public_key_path)`), Ubuntu 22.04 EC2 (e.g. m6i.xlarge), Elastic IP, user_data to:
   - Update system, install Docker, Python 3.11 + venv
   - Install OpenHands (Local GUI)
   - Create workspace directory (e.g. `~/openhands-workspaces`)
   - **systemd** unit to start OpenHands server on boot (bind `0.0.0.0`, port 8000, workspace dir, no auth)
-- **variables.tf** – `region` (default us-east-1), `instance_type` (default m6i.xlarge), `ssh_public_key_path` (path to SSH public key, e.g. `~/.ssh/id_ed25519.pub`)
+- **variables.tf** – `region` (default us-west-2 via `aws_region`), `instance_type` (default m6i.xlarge), `ssh_public_key_path` (path to SSH public key, e.g. `~/.ssh/id_ed25519.pub`)
 - **outputs.tf** – `public_ip` (EIP), `ssh_command`, `openhands_url` (e.g. `http://<public_ip>:8000`)
 
 ---
