@@ -15,7 +15,55 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Latest Ubuntu 22.04 LTS AMI (us-west-2)
+# --- Networking: dedicated VPC + public subnet for the EC2 instance ---
+
+resource "aws_vpc" "openhands" {
+  cidr_block           = "10.42.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "openhands-vpc"
+  }
+}
+
+resource "aws_internet_gateway" "openhands" {
+  vpc_id = aws_vpc.openhands.id
+
+  tags = {
+    Name = "openhands-igw"
+  }
+}
+
+resource "aws_subnet" "openhands_public" {
+  vpc_id                  = aws_vpc.openhands.id
+  cidr_block              = "10.42.0.0/24"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "openhands-public-subnet"
+  }
+}
+
+resource "aws_route_table" "openhands_public" {
+  vpc_id = aws_vpc.openhands.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.openhands.id
+  }
+
+  tags = {
+    Name = "openhands-public-rt"
+  }
+}
+
+resource "aws_route_table_association" "openhands_public" {
+  subnet_id      = aws_subnet.openhands_public.id
+  route_table_id = aws_route_table.openhands_public.id
+}
+
+# Latest Ubuntu 22.04 LTS AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
@@ -36,10 +84,11 @@ resource "aws_key_pair" "openhands" {
   public_key = file(var.ssh_public_key_path)
 }
 
-# Security group: SSH (22) and OpenHands API (8000) from anywhere
+# Security group: SSH (22) and OpenHands API (8000) from anywhere, attached to our VPC
 resource "aws_security_group" "openhands" {
   name        = "openhands-ec2"
   description = "SSH and OpenHands Local GUI (port 8000)"
+  vpc_id      = aws_vpc.openhands.id
 
   ingress {
     from_port   = 22
@@ -69,6 +118,7 @@ resource "aws_instance" "openhands" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   key_name               = aws_key_pair.openhands.key_name
+  subnet_id              = aws_subnet.openhands_public.id
   vpc_security_group_ids = [aws_security_group.openhands.id]
   user_data              = file("${path.module}/scripts/user-data.sh")
 
