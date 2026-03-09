@@ -1,0 +1,36 @@
+#!/bin/bash
+# OpenHands EC2 bootstrap: install Docker, create dirs, run OpenHands container.
+# Runs as root on first boot. See docs/openhands-ec2-plan.md.
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+# System update
+apt-get update && apt-get upgrade -y
+
+# Install Docker (Ubuntu 22.04)
+apt-get install -y ca-certificates curl
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+systemctl enable docker && systemctl start docker
+usermod -aG docker ubuntu
+
+# OpenHands state and workspace dirs (ubuntu user)
+mkdir -p /home/ubuntu/.openhands /home/ubuntu/openhands-workspaces
+chown -R ubuntu:ubuntu /home/ubuntu/.openhands /home/ubuntu/openhands-workspaces
+
+# Run OpenHands Local GUI (container listens on 3000; we map host 8000 -> 3000)
+docker run -d \
+  --restart unless-stopped \
+  --name openhands-app \
+  -p 8000:3000 \
+  -e AGENT_SERVER_IMAGE_REPOSITORY=ghcr.io/openhands/agent-server \
+  -e AGENT_SERVER_IMAGE_TAG=1.11.4-python \
+  -e LOG_ALL_EVENTS=true \
+  -v /home/ubuntu/.openhands:/.openhands \
+  -v /home/ubuntu/openhands-workspaces:/workspace \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --add-host host.docker.internal:host-gateway \
+  docker.openhands.dev/openhands/openhands:1.4

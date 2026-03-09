@@ -15,7 +15,7 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Latest Ubuntu 22.04 LTS AMI (us-east-1)
+# Latest Ubuntu 22.04 LTS AMI (us-west-2)
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
@@ -64,53 +64,13 @@ resource "aws_security_group" "openhands" {
   }
 }
 
-# User data: install Docker, create dirs, run OpenHands container (port 8000 on host)
-locals {
-  user_data = <<-EOT
-#!/bin/bash
-set -e
-export DEBIAN_FRONTEND=noninteractive
-
-# System update
-apt-get update && apt-get upgrade -y
-
-# Install Docker (Ubuntu 22.04)
-apt-get install -y ca-certificates curl
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-chmod a+r /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-systemctl enable docker && systemctl start docker
-usermod -aG docker ubuntu
-
-# OpenHands state and workspace dirs (ubuntu user)
-mkdir -p /home/ubuntu/.openhands /home/ubuntu/openhands-workspaces
-chown -R ubuntu:ubuntu /home/ubuntu/.openhands /home/ubuntu/openhands-workspaces
-
-# Run OpenHands Local GUI (container listens on 3000; we map host 8000 -> 3000)
-docker run -d \
-  --restart unless-stopped \
-  --name openhands-app \
-  -p 8000:3000 \
-  -e AGENT_SERVER_IMAGE_REPOSITORY=ghcr.io/openhands/agent-server \
-  -e AGENT_SERVER_IMAGE_TAG=1.11.4-python \
-  -e LOG_ALL_EVENTS=true \
-  -v /home/ubuntu/.openhands:/.openhands \
-  -v /home/ubuntu/openhands-workspaces:/workspace \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  --add-host host.docker.internal:host-gateway \
-  docker.openhands.dev/openhands/openhands:1.4
-EOT
-}
-
-# EC2 instance
+# EC2 instance (user_data from separate script for clarity)
 resource "aws_instance" "openhands" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
   key_name               = aws_key_pair.openhands.key_name
   vpc_security_group_ids = [aws_security_group.openhands.id]
-  user_data              = local.user_data
+  user_data              = file("${path.module}/scripts/user-data.sh")
 
   tags = {
     Name = "openhands-ec2"
