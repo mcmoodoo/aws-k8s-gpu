@@ -20,6 +20,9 @@ apply:
 destroy:
 	terraform destroy
 
+ssh:
+    ssh ubuntu@$(terraform output -raw public_ip)
+
 # --- Kubeconfig ---
 kubeconfig:
 	aws eks update-kubeconfig --name agentic-gpu-eks --region us-west-2
