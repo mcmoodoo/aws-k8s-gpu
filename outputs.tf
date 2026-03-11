@@ -12,3 +12,13 @@ output "openhands_url" {
   description = "OpenHands Local GUI + API base URL."
   value       = "http://${aws_eip.openhands.public_ip}:8000"
 }
+
+output "openhands_lm_gpu_public_ip" {
+  description = "Elastic IP of the OpenHands LM 7B GPU EC2 instance."
+  value       = aws_eip.openhands_lm_gpu.public_ip
+}
+
+output "openhands_lm_gpu_url" {
+  description = "OpenHands LM 7B vLLM OpenAI-compatible base URL."
+  value       = "http://${aws_eip.openhands_lm_gpu.public_ip}:8000"
+}

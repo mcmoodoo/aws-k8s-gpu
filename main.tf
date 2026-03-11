@@ -63,7 +63,7 @@ resource "aws_route_table_association" "openhands_public" {
   route_table_id = aws_route_table.openhands_public.id
 }
 
-# Latest Ubuntu 22.04 LTS AMI
+# Latest Ubuntu 22.04 LTS AMI (CPU instance)
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
@@ -71,6 +71,21 @@ data "aws_ami" "ubuntu" {
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# GPU-optimized AMI with NVIDIA drivers preinstalled (AWS Deep Learning Base OSS Nvidia Driver GPU AMI, Ubuntu 22.04)
+data "aws_ami" "ubuntu_gpu" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)*"]
   }
   filter {
     name   = "virtualization-type"
@@ -124,6 +139,33 @@ resource "aws_instance" "openhands" {
 
   tags = {
     Name = "openhands-ec2"
+  }
+}
+
+# GPU EC2 instance running OpenHands LM 7B with vLLM
+resource "aws_instance" "openhands_lm_gpu" {
+  ami                    = data.aws_ami.ubuntu_gpu.id
+  instance_type          = var.gpu_instance_type
+  key_name               = aws_key_pair.openhands.key_name
+  subnet_id              = aws_subnet.openhands_public.id
+  vpc_security_group_ids = [aws_security_group.openhands.id]
+  user_data              = file("${path.module}/scripts/user-data-gpu.sh")
+
+  root_block_device {
+    volume_size = 300
+    volume_type = "gp3"
+  }
+
+  tags = {
+    Name = "openhands-lm-gpu"
+  }
+}
+
+resource "aws_eip" "openhands_lm_gpu" {
+  instance = aws_instance.openhands_lm_gpu.id
+  domain   = "vpc"
+  tags = {
+    Name = "openhands-lm-gpu"
   }
 }
 
