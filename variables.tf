@@ -15,7 +15,6 @@ variable "gpu_instance_type" {
   type        = string
   default     = "g5.4xlarge"
 }
-
 variable "ssh_public_key_path" {
   description = "Path to the SSH public key file (e.g. expand with $HOME: -var ssh_public_key_path=$HOME/.ssh/id_ed25519.pub). Terraform creates an EC2 key pair from this."
   type        = string

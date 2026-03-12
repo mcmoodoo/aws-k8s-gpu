@@ -11,7 +11,7 @@ Single EC2 instance running OpenHands (Local GUI + REST API), managed by Terrafo
 | 1 | **Port / HTTPS** | Port **8000**, HTTP only. Security group allows **22** (SSH) and **8000**. |
 | 2 | **OpenHands component** | **Local GUI + REST API** (API + UI). One process on `0.0.0.0:8000`. |
 | 3 | **SSH key** | **Public key path.** Variable = path to SSH public key (e.g. `~/.ssh/id_ed25519.pub`). Terraform creates an `aws_key_pair` from that file; instance uses it. User keeps the private key locally (e.g. `~/.ssh/id_ed25519`) for SSH. |
-| 4 | **Elastic IP** | **Yes.** EIP attached to the instance so IP and URLs are stable. |
+| 4 | **Elastic IP** | **Yes.** EIP attached to the instance so IP and URLs are stable. The instance discovers its own public IP at boot via EC2 metadata and passes it into the OpenHands container as `DOCKER_HOST_ADDR`, so the Web UI uses the correct host instead of `localhost` for WebSocket connections. |
 
 ---
 
@@ -22,7 +22,7 @@ Single EC2 instance running OpenHands (Local GUI + REST API), managed by Terrafo
   - Install OpenHands (Local GUI)
   - Create workspace directory (e.g. `~/openhands-workspaces`)
   - **systemd** unit to start OpenHands server on boot (bind `0.0.0.0`, port 8000, workspace dir, no auth)
-- **variables.tf** – `region` (default us-west-2 via `aws_region`), `instance_type` (default m6i.xlarge), `ssh_public_key_path` (path to SSH public key, e.g. `~/.ssh/id_ed25519.pub`)
+- **variables.tf** – `region` (default us-west-2 via `aws_region`), `instance_type` (default m6i.xlarge), `ssh_public_key_path` (path to SSH public key, e.g. `~/.ssh/id_ed25519.pub`).
 - **outputs.tf** – `public_ip` (EIP), `ssh_command`, `openhands_url` (e.g. `http://<public_ip>:8000`)
 
 ---

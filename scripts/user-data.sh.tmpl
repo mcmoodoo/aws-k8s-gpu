@@ -34,6 +34,9 @@ chown ubuntu:ubuntu /home/ubuntu/.openhands/config.toml
 # Pre-pull agent-server image so the UI does not block on first conversation (avoids 500s / repeated pulls).
 docker pull ghcr.io/openhands/agent-server:1.11.4-python
 
+# Discover this instance's public IPv4 (for DOCKER_HOST_ADDR) from EC2 metadata.
+PUBLIC_IPV4="$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || echo "127.0.0.1")"
+
 # Run OpenHands Local GUI (container listens on 3000; we map host 8000 -> 3000 for browser
 # access, and also expose host port 3000 so the agent-server container can reach the app
 # at http://host.docker.internal:3000 as expected by the default webhook configuration).
@@ -43,6 +46,8 @@ docker run -d \
   --name openhands-app \
   -p 8000:3000 \
   -p 3000:3000 \
+  -e DOCKER_HOST_ADDR="$PUBLIC_IPV4" \
+  -e SANDBOX_RUNTIME_BINDING_ADDRESS="0.0.0.0" \
   -e AGENT_SERVER_IMAGE_REPOSITORY=ghcr.io/openhands/agent-server \
   -e AGENT_SERVER_IMAGE_TAG=1.11.4-python \
   -e LOG_ALL_EVENTS=true \
@@ -53,5 +58,5 @@ docker run -d \
   -v /home/ubuntu/openhands-workspaces:/workspace \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --add-host host.docker.internal:host-gateway \
-  docker.openhands.dev/openhands/openhands:1.4
+  docker.openhands.dev/openhands/openhands:1.5.0
 
