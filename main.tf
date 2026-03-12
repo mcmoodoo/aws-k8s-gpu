@@ -146,6 +146,11 @@ resource "aws_instance" "openhands" {
     gpu_llm_url = local.gpu_llm_url
   })
 
+  root_block_device {
+    volume_size = 40
+    volume_type = "gp3"
+  }
+
   tags = {
     Name = "openhands-ec2"
   }

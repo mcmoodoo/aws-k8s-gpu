@@ -21,7 +21,8 @@ usermod -aG docker ubuntu
 mkdir -p /home/ubuntu/.openhands /home/ubuntu/openhands-workspaces
 chown -R ubuntu:ubuntu /home/ubuntu/.openhands /home/ubuntu/openhands-workspaces
 
-# Configure OpenHands to use the GPU vLLM server by default via config.toml.
+# Configure OpenHands to use the GPU vLLM server. Docker mode reads LLM_* env vars;
+# we also write config.toml for CLI/fallback (container mounts /.openhands).
 cat >/home/ubuntu/.openhands/config.toml <<EOF
 [llm]
 model = "OpenHands/openhands-lm-7b-v0.1"
@@ -30,14 +31,24 @@ base_url = "${gpu_llm_url}"
 EOF
 chown ubuntu:ubuntu /home/ubuntu/.openhands/config.toml
 
-# Run OpenHands Local GUI (container listens on 3000; we map host 8000 -> 3000)
+# Pre-pull agent-server image so the UI does not block on first conversation (avoids 500s / repeated pulls).
+docker pull ghcr.io/openhands/agent-server:1.11.4-python
+
+# Run OpenHands Local GUI (container listens on 3000; we map host 8000 -> 3000 for browser
+# access, and also expose host port 3000 so the agent-server container can reach the app
+# at http://host.docker.internal:3000 as expected by the default webhook configuration).
+# LLM_* env vars ensure the app uses the GPU vLLM endpoint without relying on config.toml path.
 docker run -d \
   --restart unless-stopped \
   --name openhands-app \
   -p 8000:3000 \
+  -p 3000:3000 \
   -e AGENT_SERVER_IMAGE_REPOSITORY=ghcr.io/openhands/agent-server \
   -e AGENT_SERVER_IMAGE_TAG=1.11.4-python \
   -e LOG_ALL_EVENTS=true \
+  -e LLM_BASE_URL="${gpu_llm_url}" \
+  -e LLM_MODEL="OpenHands/openhands-lm-7b-v0.1" \
+  -e LLM_API_KEY="test-key" \
   -v /home/ubuntu/.openhands:/.openhands \
   -v /home/ubuntu/openhands-workspaces:/workspace \
   -v /var/run/docker.sock:/var/run/docker.sock \
