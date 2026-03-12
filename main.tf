@@ -35,9 +35,11 @@ resource "aws_internet_gateway" "openhands" {
   }
 }
 
+# Single public subnet in an AZ that supports g5.4xlarge (us-west-2a; 2b/2c also work).
 resource "aws_subnet" "openhands_public" {
   vpc_id                  = aws_vpc.openhands.id
   cidr_block              = "10.42.0.0/24"
+  availability_zone       = "${var.aws_region}a"
   map_public_ip_on_launch = true
 
   tags = {
@@ -93,6 +95,11 @@ data "aws_ami" "ubuntu_gpu" {
   }
 }
 
+locals {
+  # Internal URL for the GPU vLLM server, used by the OpenHands EC2 instance.
+  gpu_llm_url = "http://${aws_instance.openhands_lm_gpu.private_ip}:8000"
+}
+
 # EC2 key pair from local public key (SSH access)
 resource "aws_key_pair" "openhands" {
   key_name   = "openhands-ec2"
@@ -135,7 +142,9 @@ resource "aws_instance" "openhands" {
   key_name               = aws_key_pair.openhands.key_name
   subnet_id              = aws_subnet.openhands_public.id
   vpc_security_group_ids = [aws_security_group.openhands.id]
-  user_data              = file("${path.module}/scripts/user-data.sh")
+  user_data              = templatefile("${path.module}/scripts/user-data.sh.tmpl", {
+    gpu_llm_url = local.gpu_llm_url
+  })
 
   tags = {
     Name = "openhands-ec2"
