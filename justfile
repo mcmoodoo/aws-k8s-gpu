@@ -40,3 +40,6 @@ send-request-gpu url:
 	curl "{{url}}/v1/chat/completions" \
 		-H "Content-Type: application/json" \
 		-d '{"model":"OpenHands/openhands-lm-7b-v0.1","messages":[{"role":"user","content":"write a short poem about resilience"}],"max_tokens":100}'
+
+ssh-tunnel:
+	ssh -L 8000:localhost:8000 -L 35363:localhost:35363 -L 35821:localhost:35821 -L 53805:localhost:53805 -L 56823:localhost:56823 -L 42807:localhost:42807 ubuntu@54.212.251.135
