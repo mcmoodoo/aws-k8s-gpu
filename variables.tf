@@ -1,13 +1,7 @@
 variable "aws_region" {
-  description = "AWS region for the OpenHands EC2 instance."
+  description = "AWS region for the LLM GPU EC2 instance."
   type        = string
   default     = "us-west-2"
-}
-
-variable "instance_type" {
-  description = "EC2 instance type for the OpenHands server."
-  type        = string
-  default     = "m6i.xlarge"
 }
 
 variable "gpu_instance_type" {

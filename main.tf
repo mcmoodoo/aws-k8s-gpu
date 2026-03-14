@@ -1,5 +1,5 @@
-# OpenHands on a single EC2 instance (see docs/openhands-ec2-plan.md).
-# Requires: variables for region, instance_type, ssh_public_key_path.
+# LLM GPU EC2 instance (vLLM / OpenHands LM 7B). Single instance, no CPU OpenHands GUI.
+# Requires: variables for region, gpu_instance_type, ssh_public_key_path.
 
 terraform {
   required_version = ">= 1.5.0"
@@ -65,21 +65,6 @@ resource "aws_route_table_association" "openhands_public" {
   route_table_id = aws_route_table.openhands_public.id
 }
 
-# Latest Ubuntu 22.04 LTS AMI (CPU instance)
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
-  }
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
 # GPU-optimized AMI with NVIDIA drivers preinstalled (AWS Deep Learning Base OSS Nvidia Driver GPU AMI, Ubuntu 22.04)
 data "aws_ami" "ubuntu_gpu" {
   most_recent = true
@@ -95,21 +80,16 @@ data "aws_ami" "ubuntu_gpu" {
   }
 }
 
-locals {
-  # Internal URL for the GPU vLLM server, used by the OpenHands EC2 instance.
-  gpu_llm_url = "http://${aws_instance.openhands_lm_gpu.private_ip}:8000"
-}
-
 # EC2 key pair from local public key (SSH access)
 resource "aws_key_pair" "openhands" {
-  key_name   = "openhands-ec2"
+  key_name   = "openhands-lm-gpu"
   public_key = file(var.ssh_public_key_path)
 }
 
-# Security group: SSH (22) and OpenHands API (8000) from anywhere, attached to our VPC
+# Security group: SSH (22) and vLLM API (8000) from anywhere
 resource "aws_security_group" "openhands" {
-  name        = "openhands-ec2"
-  description = "SSH and OpenHands Local GUI (port 8000)"
+  name        = "openhands-lm-gpu"
+  description = "SSH and vLLM OpenAI-compatible API (port 8000)"
   vpc_id      = aws_vpc.openhands.id
 
   ingress {
@@ -124,7 +104,7 @@ resource "aws_security_group" "openhands" {
     to_port     = 8000
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "OpenHands GUI + API"
+    description = "vLLM API"
   }
   egress {
     from_port   = 0
@@ -132,27 +112,6 @@ resource "aws_security_group" "openhands" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
     description = "All outbound"
-  }
-}
-
-# EC2 instance (user_data from separate script for clarity)
-resource "aws_instance" "openhands" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.instance_type
-  key_name               = aws_key_pair.openhands.key_name
-  subnet_id              = aws_subnet.openhands_public.id
-  vpc_security_group_ids = [aws_security_group.openhands.id]
-  user_data              = templatefile("${path.module}/scripts/user-data.sh.tmpl", {
-    gpu_llm_url = local.gpu_llm_url
-  })
-
-  root_block_device {
-    volume_size = 40
-    volume_type = "gp3"
-  }
-
-  tags = {
-    Name = "openhands-ec2"
   }
 }
 
@@ -175,19 +134,11 @@ resource "aws_instance" "openhands_lm_gpu" {
   }
 }
 
+# Elastic IP so the public IP and URLs stay fixed across reboots
 resource "aws_eip" "openhands_lm_gpu" {
   instance = aws_instance.openhands_lm_gpu.id
   domain   = "vpc"
   tags = {
     Name = "openhands-lm-gpu"
-  }
-}
-
-# Elastic IP so the public IP and URLs stay fixed across reboots
-resource "aws_eip" "openhands" {
-  instance = aws_instance.openhands.id
-  domain   = "vpc"
-  tags = {
-    Name = "openhands-ec2"
   }
 }
