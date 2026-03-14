@@ -23,10 +23,12 @@ chown -R ubuntu:ubuntu /home/ubuntu/.openhands /home/ubuntu/openhands-workspaces
 
 # Configure OpenHands to use the GPU vLLM server. Docker mode reads LLM_* env vars;
 # we also write config.toml for CLI/fallback (container mounts /.openhands).
+# Use a key starting with sk-; set LITELLM_MASTER_KEY to the same value so any internal LiteLLM proxy accepts it.
+OPENHANDS_LLM_KEY="sk-openhands-vllm"
 cat >/home/ubuntu/.openhands/config.toml <<EOF
 [llm]
 model = "OpenHands/openhands-lm-7b-v0.1"
-api_key = "test-key"
+api_key = "$OPENHANDS_LLM_KEY"
 base_url = "${gpu_llm_url}"
 EOF
 chown ubuntu:ubuntu /home/ubuntu/.openhands/config.toml
@@ -41,6 +43,8 @@ PUBLIC_IPV4="$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || ec
 # access, and also expose host port 3000 so the agent-server container can reach the app
 # at http://host.docker.internal:3000 as expected by the default webhook configuration).
 # LLM_* env vars ensure the app uses the GPU vLLM endpoint without relying on config.toml path.
+# If the app routes LLM through an internal LiteLLM proxy, that proxy validates the API key;
+# LITELLM_MASTER_KEY (same as LLM_API_KEY) makes the proxy accept it without a DB.
 docker run -d \
   --restart unless-stopped \
   --name openhands-app \
@@ -53,7 +57,8 @@ docker run -d \
   -e LOG_ALL_EVENTS=true \
   -e LLM_BASE_URL="${gpu_llm_url}" \
   -e LLM_MODEL="OpenHands/openhands-lm-7b-v0.1" \
-  -e LLM_API_KEY="test-key" \
+  -e LLM_API_KEY="$OPENHANDS_LLM_KEY" \
+  -e LITELLM_MASTER_KEY="$OPENHANDS_LLM_KEY" \
   -v /home/ubuntu/.openhands:/.openhands \
   -v /home/ubuntu/openhands-workspaces:/workspace \
   -v /var/run/docker.sock:/var/run/docker.sock \
