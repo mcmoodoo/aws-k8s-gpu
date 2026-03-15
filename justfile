@@ -4,9 +4,8 @@
 # --- Default: list commands ---
 opt_c := "-c"
 
-[default]
 list:
-	sh {{ opt_c }} "just --list"
+	@just --list
 
 # --- Dev environment ---
 enter-env:
