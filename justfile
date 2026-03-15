@@ -1,6 +1,9 @@
 # Recipes for LLM GPU EC2 (vLLM / OpenHands LM 7B).
 # Run inside aws-vault if needed (e.g.: `aws-vault exec mcmoodoo -- just apply`).
 
+# Literal "{{port}}" for URL patterns (Just would otherwise treat {{port}} as a variable)
+_port_literal := "{" + "{" + "port" + "}" + "}"
+
 # --- Default: list commands ---
 opt_c := "-c"
 
@@ -49,7 +52,7 @@ oh-start llm-base-url:
         -e AGENT_SERVER_IMAGE_REPOSITORY=ghcr.io/openhands/agent-server \
         -e AGENT_SERVER_IMAGE_TAG=1.12.0-python \
         -e LOG_ALL_EVENTS=true \
-        -e SANDBOX_CONTAINER_URL_PATTERN='http://'$(curl ifconfig.me)':{{port}}' \
+        -e SANDBOX_CONTAINER_URL_PATTERN='http://'$(curl ifconfig.me)':{{_port_literal}}' \
         -e DOCKER_HOST_ADDR=$(curl ifconfig.me) \
         -e LLM_BASE_URL={{llm-base-url}} \
         -e LLM_MODEL=openai/OpenHands/openhands-lm-7b-v0.1 \
